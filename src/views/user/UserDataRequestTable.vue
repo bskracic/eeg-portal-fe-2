@@ -2,8 +2,12 @@
     <div>
         <div v-if="!selectedRequest">
             <h2 class="mb-4">My Data Requests</h2>
+            <p>If you want to access EEG Portal's data, you have to submit the request via "New request" tool. After
+                your request
+                is approved by our team, you can download the requested data.</p>
 
-            <DataTable :value="requests" dataKey="id" responsiveLayout="scroll" selectionMode="single"
+            <DataTable :value="requests" dataKey="id" responsiveLayout="scroll" selectionMode="single" :lazy="true"
+                paginator :rows="rows" :totalRecords="totalRecords" :loading="loading" @page="onPage"
                 @row-click="selectRequest">
                 <Column field="id" header="Id" />
                 <Column field="name" header="Name" />
@@ -20,7 +24,7 @@
             </DataTable>
         </div>
 
-        <div v-else class="h-[90vh] overflow-y-auto p-4">
+        <div v-else>
             <Button label="← Back" link @click="selectedRequest = null" class="mb-4" />
 
             <h3>Request #{{ selectedRequest.id }}: {{ selectedRequest.name }}</h3>
@@ -28,43 +32,48 @@
             <div class="mb-4">
                 <p><strong>Message:</strong> {{ selectedRequest.message || "—" }}</p>
                 <p><strong>Created At:</strong> {{ formatDate(selectedRequest.created_at) }}</p>
-                <p><strong>Status:</strong>
+                <p v-if="!selectedRequest.approved_at"><strong>Status:</strong>
                     <Tag :value="getStatus(selectedRequest)" :severity="getStatusSeverity(selectedRequest)" />
                 </p>
+                <Button v-else icon="pi pi-download" label="Download Data" @click="download" />
+                <p></p>
             </div>
 
             <Divider />
 
-            <div class="mb-4">
-                <h3 class="mb-2">Columns</h3>
-                <div class="flex flex-wrap gap-2">
-                    <Tag v-for="col in selectedRequest.request_columns" :key="col.column_name"
-                        :value="col.column_name" />
-                </div>
-            </div>
-
-            <Divider />
-
-            <div class="mb-4">
-                <h3 class="mb-2">Markers</h3>
-                <div class="flex flex-wrap gap-2">
-                    <Tag v-for="marker in selectedRequest.request_markers" :key="marker.id"
-                        :value="marker.marker.type" />
-                </div>
-            </div>
-
-            <Divider />
-
-            <div>
-                <h3 class="mb-2">Demographic Filters</h3>
-                <ul class="list-disc list-inside">
-                    <li v-for="(demo, i) in selectedRequest.request_demographic_filters" :key="i">
-                        {{ demo.field }} {{ demo.comparator }} {{ demo.value }}
-                    </li>
-                </ul>
-            </div>
-
-            <Divider />
+            <Tabs value="0">
+                <TabList>
+                    <Tab value="0">Markers</Tab>
+                    <Tab value="1">Demographics</Tab>
+                    <Tab value="2">Columns</Tab>
+                </TabList>
+                <TabPanels>
+                    <TabPanel value="0">
+                        <div v-if="selectedRequest?.request_markers?.length">
+                            <Tag v-for="marker in selectedRequest?.request_markers" :key="marker.id"
+                                :value="marker.marker.type" severity="secondary" class="mr-2 mb-2" />
+                        </div>
+                        <p v-else>No markers selected.</p>
+                    </TabPanel>
+                    <TabPanel value="1">
+                        <p v-if="!selectedRequest?.request_demographic_filters?.length">
+                            No demographic filters chosen.
+                        </p>
+                        <ul v-else>
+                            <li v-for="(demo, i) in selectedRequest?.request_demographic_filters" :key="i">
+                                {{ demo.field }} {{ demo.comparator }} {{ demo.value }}
+                            </li>
+                        </ul>
+                    </TabPanel>
+                    <TabPanel value="2">
+                        <div v-if="selectedRequest?.request_columns?.length">
+                            <Tag v-for="col in selectedRequest?.request_columns" :key="col.column_name"
+                                :value="col.column_name" severity="secondary" class="mr-2 mb-2" />
+                        </div>
+                        <p v-else>No columns selected.</p>
+                    </TabPanel>
+                </TabPanels>
+            </Tabs>
         </div>
     </div>
 </template>
@@ -73,17 +82,21 @@
 import { Button, Column, DataTable, Divider, Tag } from "primevue";
 import { onMounted, ref } from "vue";
 
-import type { UserDataRequest } from "@/api/userDataRequest";
-import { useUserDataRequestStore } from "@/stores/userDataRequestStore";
+import { userDataRequestApi, type UserDataRequest } from "@/api/userDataRequest";
 
 const requests = ref<UserDataRequest[]>([]);
 const selectedRequest = ref<UserDataRequest | null>(null);
+const totalRecords = ref(0);
+const loading = ref(false);
+const rows = ref(10);
 
-const requestStore = useUserDataRequestStore();
+// TODO: think about how store can be better
+// const requestStore = useUserDataRequestStore();
 
 onMounted(async () => {
-    await requestStore.loadRequests();
-    requests.value = requestStore.requests;
+    // await requestStore.loadRequests();
+    // requests.value = requestStore.requests;
+    loadRequests(0);
 });
 
 function getStatus(req: UserDataRequest) {
@@ -95,7 +108,7 @@ function getStatus(req: UserDataRequest) {
 function getStatusSeverity(req: UserDataRequest) {
     if (req.approved_at) return "success";
     if (req.declined_at) return "danger";
-    return "warning";
+    return "warn";
 }
 
 function formatDate(dateStr: string) {
@@ -105,4 +118,27 @@ function formatDate(dateStr: string) {
 function selectRequest(event: any) {
     selectedRequest.value = event.data;
 }
+
+async function loadRequests(page = 0) {
+    loading.value = true;
+
+    try {
+        const limit = rows.value;
+        const offset = page * limit;
+        const response = await userDataRequestApi.fetchUserRequests(limit, offset);
+        requests.value = response.results;
+        totalRecords.value = response.count;
+    } finally {
+        loading.value = false;
+    }
+}
+
+function onPage(event: any) {
+    loadRequests(event.page);
+}
+
+const download = () => {
+    userDataRequestApi.downloadData(selectedRequest.value.id.toString());
+}
+
 </script>

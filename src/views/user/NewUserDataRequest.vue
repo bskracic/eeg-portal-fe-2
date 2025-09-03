@@ -71,6 +71,8 @@
         </div>
 
         <Divider />
+
+        <Toast group="tc" position="top-center" />
     </div>
 </template>
 
@@ -80,6 +82,8 @@ import { userDataRequestService } from "@/services/userDataRequestService";
 import { useUserDataRequestStore } from "@/stores/userDataRequestStore";
 import { computed, onMounted, ref } from "vue";
 
+import router from "@/router";
+import { useToast } from "primevue";
 import Button from "primevue/button";
 import Checkbox from "primevue/checkbox";
 import Divider from "primevue/divider";
@@ -87,8 +91,8 @@ import Dropdown from "primevue/dropdown";
 import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
 
-const emit = defineEmits(["requestSubmitted"]);
 const userDataRequestStore = useUserDataRequestStore();
+const toast = useToast();
 
 interface Filter {
     field: string | null;
@@ -102,7 +106,6 @@ const selectedMarkers = ref<number[]>([]);
 const demographicFilters = ref<Filter[]>([]);
 const name = ref("");
 const message = ref("");
-const showSuccessSnackbar = ref<boolean>(false);
 
 const operators = [">", "<", ">=", "<=", "=", "!="];
 
@@ -183,7 +186,16 @@ const handleSubmit = async () => {
     };
 
     await userDataRequestService.createDataRequest(payload);
-    showSuccessSnackbar.value = true;
-    emit("requestSubmitted");
+    toast.add({
+        severity: 'success',
+        summary: 'Request submitted',
+        detail: 'Request submitted successfully. Please wait for the admin to approve your request for data access before you can download data',
+        group: 'tc',
+        life: 5000
+    });
+    router.options.history.destroy();
+    router.push({
+        name: 'data-request-list'
+    });
 };
 </script>

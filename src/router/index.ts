@@ -45,7 +45,7 @@ const router = createRouter({
                 },
                 {
                     path: '/data-requests/list',
-                    name: 'data-requests',
+                    name: 'data-request-list',
                     component: () => import('@/views/user/UserDataRequestTable.vue')
                 }
             ],

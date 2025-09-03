@@ -52,7 +52,8 @@ const createApiInstance = (): AxiosInstance => {
             path: '/auth/login'
           })
         }
-
+      } else if (error.response?.status === 404) {
+        router.push({ path: '/pages/notfound' });
       }
       return Promise.reject(error);
     }
@@ -96,7 +97,8 @@ export const API_ENDPOINTS = {
     AVAILABLE_MARKERS: '/api/data/markers/',
     AVAILABLE_DEMOGRAPHICS: '/api/data/demographics/',
     CREATE: '/api/user/requests/',
-    RETRIEVE_ALL: '/api/user/requests/',
+    RETRIEVE_ALL: (limit: number, offset: number) => `/api/user/requests/?limit=${limit}&offset=${offset}`,
+    DOWNLOAD_DATA: (requestId: string) => `/api/user/requests/${requestId}/download/`
   }
 } as const;
 
