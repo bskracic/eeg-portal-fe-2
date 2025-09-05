@@ -1,4 +1,4 @@
-import {api, API_ENDPOINTS } from './api'
+import { api, API_ENDPOINTS } from './api';
 
 
 export interface SampleDto {
@@ -102,6 +102,12 @@ export interface SampleReadDto {
   marker_id: number | null;
 };
 
+export interface DemographicFilter {
+  field: string;
+  comparator: string;
+  value: string;
+}
+
 
 export const sampleApi = {
   createSample: async (sample: SampleDto): Promise<SampleResponseDto> => {
@@ -119,8 +125,8 @@ export const sampleApi = {
     })
     return response.data.message;
   },
-  getSampleReadHead: async (): Promise<SampleReadDto[]> => {
-    const response = await api.get(API_ENDPOINTS.SAMPLE.HEAD);
+  getSampleReadHead: async (filters: DemographicFilter[]): Promise<SampleReadDto[]> => {
+    const response = await api.post(API_ENDPOINTS.SAMPLE.HEAD, filters);
     return response.data;
   }
 }

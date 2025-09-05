@@ -1,4 +1,5 @@
 import AppLayout from '@/layout/AppLayout.vue';
+import { useAuthStore } from '@/stores/authStore';
 import { createRouter, createWebHistory } from 'vue-router';
 
 const router = createRouter({
@@ -21,22 +22,26 @@ const router = createRouter({
                 {
                     path: '/upload',
                     name: 'sample-upload',
-                    component: () => import('@/views/SampleUpload.vue')
+                    component: () => import('@/views/SampleUpload.vue'),
+                    meta: { requiresAdmin: true }
                 },
                 {
                     path: '/users',
                     name: 'user-table',
-                    component: () => import('@/views/admin/UserTable.vue')
+                    component: () => import('@/views/admin/UserTable.vue'),
+                    meta: { requiresAdmin: true }
                 },
                 {
                     path: '/users/detail',
                     name: 'user-detail',
-                    component: () => import('@/views/admin/UserDetail.vue')
+                    component: () => import('@/views/admin/UserDetail.vue'),
+                    meta: { requiresAdmin: true }
                 },
                 {
                     path: '/users/detail/requests',
                     name: 'user-detail-request',
-                    component: () => import('@/views/admin/UserDataRequestDetail.vue')
+                    component: () => import('@/views/admin/UserDataRequestDetail.vue'),
+                    meta: { requiresAdmin: true }
                 },
                 {
                     path: '/data-requests/new',
@@ -77,6 +82,16 @@ const router = createRouter({
             component: () => import('@/views/pages/auth/Error.vue')
         }
     ]
+});
+
+router.beforeEach((to, from, next) => {
+    const authStore = useAuthStore();
+
+    if (to.meta.requiresAdmin && !authStore.isAdmin()) {
+        return next({ name: "error" });
+    }
+
+    next();
 });
 
 export default router;

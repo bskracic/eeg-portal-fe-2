@@ -1,6 +1,13 @@
 <template>
     <div class="overflow-x-hidden">
-        <!-- Step navigation -->
+        <Stepper :value="step">
+            <StepList>
+                <Step :value="1" />
+                <Step :value="2" />
+                <Step :value="3" />
+                <Step :value="4" />
+            </StepList>
+        </Stepper>
         <div class="flex items-center gap-4 mb-4">
             <Button v-if="step > 1" outlined label="Back" @click="step--" />
             <div class="flex-grow"></div>
@@ -8,28 +15,28 @@
             <Button v-else label="Submit Request" severity="success" @click="handleSubmit" />
         </div>
 
-        <!-- Step 1 -->
         <div v-if="step === 1" class="space-y-4">
             <h3>Description for data use case</h3>
+            <p>Please provide the details on how are you planning to use the data.</p>
             <div class="flex flex-col gap-2">
-                <label for="name">Request Subject</label>
+                <label for="name">Subject</label>
                 <InputText id="name" v-model="name" />
             </div>
             <div class="flex flex-col gap-2">
-                <label for="message">Message for Admin</label>
-                <Textarea id="message" v-model="message" autoResize />
+                <label for="message">Message</label>
+                <Textarea class="h-50" id="message" v-model="message" autoResize />
             </div>
         </div>
 
-        <!-- Step 2 -->
         <div v-if="step === 2">
-            <div class="flex items-center gap-2 mb-5">
-                <h3>Select Markers</h3>
+            <h3>Select Markers</h3>
+            <div class="flex items-center justify-items-center gap-2 mb-5">
+                <p>Select which markers you want included in your data.</p>
                 <Button size="small" outlined @click="togleAllMarkers">
                     {{ allMarkersSelected ? "Deselect All" : "Select All" }}
                 </Button>
             </div>
-            <div class="h-[80vh] overflow-y-auto">
+            <div class="h-[70vh] overflow-y-auto">
                 <div v-for="marker in userDataRequestStore.availableMarkers" :key="marker.id"
                     class="flex items-center gap-2 py-1">
                     <Checkbox v-model="selectedMarkers" :inputId="'marker-' + marker.id" :value="marker.id" />
@@ -38,30 +45,44 @@
             </div>
         </div>
 
-        <!-- Step 3 -->
         <div v-if="step === 3">
             <h3>Define Demographic Filters</h3>
-            <div v-for="(filter, index) in demographicFilters" :key="index" class="flex items-center gap-2 mb-2">
-                <Dropdown v-model="filter.field" :options="userDataRequestStore.availableDemographics"
-                    placeholder="Column" class="w-40" />
-                <Dropdown v-model="filter.comparator" :options="operators" placeholder="Operator" class="w-32" />
-                <InputText v-model="filter.value" placeholder="Value" class="w-40" />
-                <Button icon="pi pi-trash" text severity="danger" @click="removeFilter(index)" />
+            <p>Specify which part of the data collection you want to use. Executing the query will provide the sample
+                data.</p>
+            <div v-for="(filter, index) in demographicFilters" :key="index" class="flex gap-2 mb-2 items-start">
+                <Button class="mt-2" icon="pi pi-trash" text severity="danger" @click="removeFilter(index)" />
+                <DemographicFilterItem :filter="filter" />
             </div>
+            <Button outlined label="+ Add Filter" @click="addFilter" class="w-[25%]" />
             <div class="flex justify-end">
-                <Button outlined label="+ Add Filter" @click="addFilter" />
+                <Button v-if="demographicFilters" severity="success" label="Run example query" icon="pi pi-play"
+                    @click="fetchHead" />
             </div>
-        </div>
+            <Divider />
 
-        <!-- Step 4 -->
+            <DataTable v-if="filteredDataHead && filteredDataHead.length !== 0" :value="filteredDataHead" scrollable
+                scrollDirection="both" dataKey="timestamp" responsiveLayout="scroll" class="w-full">
+                <template #header>
+                    <span class="text-xl font-bold">Results</span>
+                </template>
+                <Column field="timestamp" header="Timestamp" style="min-width: 200px">
+                    <template #body="{ data }">
+                        {{ formatDate(data.timestamp) }}
+                    </template>
+                </Column>
+                <Column v-for="col in Object.keys(filteredDataHead[0]).filter((c) => c !== 'timestamp')" :key="col"
+                    :field="col" :header="col.toUpperCase()" style="min-width: 120px" />
+            </DataTable>
+        </div>
         <div v-if="step === 4">
+            <h3>Select Columns</h3>
             <div class="flex items-center gap-2 mb-5">
-                <h3>Select Columns</h3>
+                <p>Select which columns you want included in your data.</p>
                 <Button size="small" outlined @click="togleAllColumns">
                     {{ allColumnsSelected ? "Deselect All" : "Select All" }}
                 </Button>
             </div>
-            <div class="h-[80vh] overflow-y-auto">
+            <div class="h-[70vh] overflow-y-auto">
                 <div v-for="col in userDataRequestStore.availableColumns" :key="col"
                     class="flex items-center gap-2 py-1">
                     <Checkbox v-model="selectedColumns" :inputId="'col-' + col" :value="col" />
@@ -69,45 +90,36 @@
                 </div>
             </div>
         </div>
-
-        <Divider />
-
         <Toast group="tc" position="top-center" />
     </div>
 </template>
 
 <script setup lang="ts">
-import type { CreateUserDataRequest } from "@/api/userDataRequest";
-import { userDataRequestService } from "@/services/userDataRequestService";
-import { useUserDataRequestStore } from "@/stores/userDataRequestStore";
-import { computed, onMounted, ref } from "vue";
-
-import router from "@/router";
 import { useToast } from "primevue";
 import Button from "primevue/button";
 import Checkbox from "primevue/checkbox";
-import Divider from "primevue/divider";
-import Dropdown from "primevue/dropdown";
 import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
+import { computed, onMounted, ref } from "vue";
+
+import { DemographicFilter, sampleApi } from "@/api/sample";
+import type { CreateUserDataRequest } from "@/api/userDataRequest";
+import DemographicFilterItem from "@/components/DemographicFilterItem.vue";
+import router from "@/router";
+import { userDataRequestService } from "@/services/userDataRequestService";
+import { useUserDataRequestStore } from "@/stores/userDataRequestStore";
+import { formatDate } from "@/utils/datetime";
 
 const userDataRequestStore = useUserDataRequestStore();
 const toast = useToast();
 
-interface Filter {
-    field: string | null;
-    comparator: string | null;
-    value: string | null;
-}
-
 const step = ref(1);
 const selectedColumns = ref<string[]>([]);
 const selectedMarkers = ref<number[]>([]);
-const demographicFilters = ref<Filter[]>([]);
+const demographicFilters = ref<DemographicFilter[]>([]);
 const name = ref("");
 const message = ref("");
-
-const operators = [">", "<", ">=", "<=", "=", "!="];
+const filteredDataHead = ref([]);
 
 onMounted(async () => {
     userDataRequestStore.loadAvailableDemographics();
@@ -163,6 +175,10 @@ const addFilter = () => {
 const removeFilter = (index: number) => {
     demographicFilters.value.splice(index, 1);
 };
+
+const fetchHead = async () => {
+    filteredDataHead.value = await sampleApi.getSampleReadHead(demographicFilters.value);
+}
 
 const handleSubmit = async () => {
     const payload: CreateUserDataRequest = {
